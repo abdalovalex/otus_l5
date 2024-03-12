@@ -1,0 +1,108 @@
+replicaCount: 3
+minReadySeconds: 1
+
+env: prod
+
+image:
+  repository: abdalovlalex/user-service-app
+  pullPolicy: Always
+  tag: v2
+
+migrationImage:
+  repository: abdalovlalex/user-service-migration
+  pullPolicy: Always
+  tag: v1
+
+resources:
+  limits:
+    cpu: 1
+    memory: 300Mi
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  automount: true
+  annotations:
+    "helm.sh/hook": pre-install, pre-upgrade
+    "helm.sh/hook-weight": "-5"
+  name: ""
+
+clusterRole:
+  rules:
+    - apiGroups: [ "" ]
+      resources: [ "configmaps", "secrets" ]
+      verbs: [ "get", "list", "watch" ]
+
+configMap:
+  create: true
+  applicationData:
+    logging:
+      level:
+        org:
+          springframework:
+            cloud: info
+
+podAnnotations: { }
+podLabels: { }
+
+service:
+  type: ClusterIP
+  port: 80
+  containerPort: 8000
+  targetPort: 8000
+
+ingress:
+  enabled: true
+  className: "nginx"
+  hosts:
+    - host: arch.homework
+      paths:
+        - path: /user-service
+          pathType: Prefix
+secrets:
+  - name: DB_USERNAME
+    key: username
+  - name: DB_PASSWORD
+    key: password
+
+livenessProbe:
+  httpGet:
+    path: /user-service/actuator/health/liveness
+    port: http
+readinessProbe:
+  httpGet:
+    path: /user-service/actuator/health/readiness
+    port: http
+
+metrics:
+  serviceMonitor:
+    enabled: true
+
+postgresql:
+  enabled: true
+  global:
+    postgresql:
+      auth:
+        database: "user-service"
+        password: "password"
+        username: "user-service"
+      service:
+        ports:
+          postgresql: "5432"
+  commonAnnotations:
+    "helm.sh/hook": pre-install, post-delete
+    "helm.sh/hook-weight": "-10"
+    "helm.sh/hook-delete-policy": before-hook-creation
+
+prometheus-postgres-exporter:
+  enabled: true
+  config:
+    datasource:
+      host: "user-service-postgresql"
+      user: "user-service"
+      password: "password"
+  serviceMonitor:
+    enabled: true
+    namespace: "abdalovalex"
